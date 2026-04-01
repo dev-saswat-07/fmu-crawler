@@ -1,0 +1,55 @@
+name: Crawl FM University Site
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1'   # every Monday at 2 AM
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Scrapy spider
+        run: cd fmu_crawler && scrapy crawl fmu
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawled-data
+          path: |
+            fmu_crawler/downloads/
+            fmu_crawler/extracted_text/
+            fmu_crawler/metadata.jsonl
+            fmu_crawler/results.jsonl
+          retention-days: 7
+
+      - name: Commit and push metadata
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add fmu_crawler/metadata.jsonl fmu_crawler/results.jsonl
+          git commit -m "Auto-update crawled metadata" || echo "No changes to commit"
+          git push
