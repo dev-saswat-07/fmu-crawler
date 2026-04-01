@@ -1,0 +1,4 @@
+scrapy
+PyPDF2
+pillow
+pytesseract
